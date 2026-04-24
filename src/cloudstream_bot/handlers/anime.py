@@ -14,19 +14,16 @@ from telegram.ext import ContextTypes
 from ..i18n import t
 from ..scrapers.animewitcher import AnimeServer
 from ..session import get_lang, recall, remember
+from ..urls import prettify_url
 from ..video import send_from_url
 
 
 log = logging.getLogger(__name__)
 
 
-async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def run_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
     assert update.message is not None and update.effective_user is not None
     lang = get_lang(update.effective_user.id)
-    query = " ".join(context.args or []).strip()
-    if not query:
-        await update.message.reply_text(t(lang, "usage_anime"))
-        return
     deps = context.application.bot_data["deps"]
     try:
         results = await deps.animewitcher.search(query, limit=15)
@@ -50,11 +47,22 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                 )
             ]
         )
+    kb.append([InlineKeyboardButton(t(lang, "menu_back"), callback_data="menu:open")])
     await update.message.reply_text(
         t(lang, "anime_results_for", query=query),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(kb),
     )
+
+
+async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    assert update.message is not None and update.effective_user is not None
+    lang = get_lang(update.effective_user.id)
+    query = " ".join(context.args or []).strip()
+    if not query:
+        await update.message.reply_text(t(lang, "usage_anime"))
+        return
+    await run_search(update, context, query)
 
 
 async def cb_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -149,7 +157,8 @@ async def cb_episode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     kb: List[List[InlineKeyboardButton]] = []
     for s in servers:
         qlabel = f" ({s.quality})" if s.quality else ""
-        lines.append(f"• <b>{s.name}</b>{qlabel} — {s.link}")
+        display = prettify_url(s.link)
+        lines.append(f"• <b>{s.name}</b>{qlabel} — <code>{display}</code>")
         label = f"{s.name}{qlabel}"
         kb.append(
             [
@@ -157,7 +166,7 @@ async def cb_episode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                     f"{t(lang, 'send_video_button')}: {label[:22]}",
                     callback_data="aw:v:" + remember("aw_v", s.link),
                 ),
-                InlineKeyboardButton(t(lang, "open_in_browser"), url=s.link),
+                InlineKeyboardButton(t(lang, "open_in_browser"), url=display),
             ]
         )
 
@@ -200,24 +209,30 @@ async def cb_send_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 # ---------------------------------------------------------------------------
 # "Send all episodes" bulk flow
 # ---------------------------------------------------------------------------
+_QUALITY_HIGH_TO_LOW = ["1080p", "720p", "540p", "480p", "360p"]
+
+
+def _quality_rank_high(q: Optional[str]) -> int:
+    return _QUALITY_HIGH_TO_LOW.index(q) if q in _QUALITY_HIGH_TO_LOW else 99
+
+
 def _pick_best_server(servers: List[AnimeServer]) -> Optional[AnimeServer]:
-    """Prefer the smallest quality that's extractable (so uploads fit)."""
+    """Prefer the highest quality that's extractable.
+
+    When no server is extractable we still return the highest-quality
+    one so its URL can be posted as a fallback.
+    """
     from ..extractors import get_extractor
 
-    preferred_quality = ["360p", "480p", "540p", "720p", "1080p"]
-
-    def quality_rank(q: Optional[str]) -> int:
-        return preferred_quality.index(q) if q in preferred_quality else 99
-
-    # extractable + lowest-quality-first
-    candidates = sorted(
+    extractable = sorted(
         (s for s in servers if get_extractor(s.link) is not None),
-        key=lambda s: quality_rank(s.quality),
+        key=lambda s: _quality_rank_high(s.quality),
     )
-    if candidates:
-        return candidates[0]
-    # fallback: no extractor, send URL later
-    return servers[0] if servers else None
+    if extractable:
+        return extractable[0]
+    if not servers:
+        return None
+    return sorted(servers, key=lambda s: _quality_rank_high(s.quality))[0]
 
 
 async def cb_send_all(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

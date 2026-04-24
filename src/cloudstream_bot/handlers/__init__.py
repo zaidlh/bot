@@ -5,7 +5,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import httpx
-from telegram.ext import Application, CallbackQueryHandler, CommandHandler
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    MessageHandler,
+    filters,
+)
 
 from ..scrapers import AnimeWitcherScraper, Asia2TVScraper
 from . import anime, asia, common
@@ -40,3 +46,11 @@ def register(app: Application, deps: BotDeps) -> None:
     app.add_handler(CallbackQueryHandler(anime.cb_send_video, pattern=r"^aw:v:"))
     app.add_handler(CallbackQueryHandler(anime.cb_send_all, pattern=r"^aw:all:"))
     app.add_handler(CallbackQueryHandler(anime.cb_send_all_confirm, pattern=r"^aw:allc:"))
+
+    # ForceReply-based search: any plain text reply to one of our search
+    # prompts runs the matching search.
+    app.add_handler(
+        MessageHandler(
+            filters.REPLY & filters.TEXT & ~filters.COMMAND, common.on_text_reply
+        )
+    )
