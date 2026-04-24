@@ -19,6 +19,7 @@ from any chat.
 - [Commands](#commands)
 - [Run on Google Colab](#run-on-google-colab)
 - [Run locally](#run-locally)
+- [Local Bot API Server (2 GB uploads)](#local-bot-api-server-2-gb-uploads)
 - [Project layout](#project-layout)
 - [How the ports work](#how-the-ports-work)
 - [Notes & limits](#notes--limits)
@@ -26,18 +27,34 @@ from any chat.
 
 ## Features
 
-- `/asia <query>` – search **Asia2TV** (Asian drama / movies).
-- `/anime <query>` – search **AnimeWitcher** (anime series / movies).
-- Inline navigation: search → title → episodes → servers.
+- **Button-driven UI** – `/start` shows an inline keyboard (Search
+  Asia2TV · Search AnimeWitcher · Language · Help). Clicking a
+  Search button force-replies, so you just type the query. Back
+  buttons on every screen.
+- **Search**: Asia2TV (Asian drama / movies) and AnimeWitcher (anime
+  series / movies). Inline navigation: search → title → episodes →
+  servers.
 - **Send as video**: for supported hosts the bot uploads an actual
   `.mp4` to Telegram instead of just a link. Currently implemented:
   - Pixeldrain (direct API, Telegram fetches the file).
   - Ok.ru (embedded player – bot downloads and re-uploads).
+  - Other hosts (Vidmoly / Krakenfiles / VK / Mediafire / …) still
+    return a clickable link.
+- **Best-quality-first**: the picker prefers 1080p over 720p over
+  480p; it falls back to the URL when the file is larger than the
+  current upload cap.
 - **Send all episodes**: one-click bulk download of every episode of a
   series (sequential, with progress updates and URL fallback for
   hosts that can't be resolved).
+- **Local Bot API Server support**: point the bot at a self-hosted
+  `telegram-bot-api` server via env vars to lift the upload cap from
+  50 MB → 2 GB. See [below](#local-bot-api-server-2-gb-uploads).
+- **Pixeldrain direct URLs**: every `pixeldrain.com/u/<id>` link is
+  rewritten to `pixeldrain.com/api/file/<id>` in both the text and
+  the Open button, so VLC / mpv / a browser tab can play it without
+  an intermediate viewer page.
 - **Three UI languages**: English, العربية, Français – pick with
-  `/lang` and the choice is remembered per user.
+  `/lang` or the Language button; the choice is remembered per user.
 - **Colab-friendly**: drop `colab_bot.py` into a notebook and run.
 
 ## Commands
@@ -94,6 +111,44 @@ back to a clickable link.
 
    `nest_asyncio.apply()` is called automatically, so nested loops in
    Colab / Jupyter just work.
+
+## Local Bot API Server (2 GB uploads)
+
+The public Bot API caps file uploads at **50 MB** (`sendVideo`,
+`sendDocument`, …). If you want to send full-quality / 1080p
+episodes, run your own [`telegram-bot-api`](https://github.com/tdlib/telegram-bot-api)
+server – that lifts the cap to **2 GB**.
+
+1. Go to <https://my.telegram.org/apps> and grab your `api_id` and
+   `api_hash` (needed to register a Bot API server).
+2. Run the server with Docker (one-liner):
+
+   ```bash
+   docker run -d --name tbot-api \
+     --restart unless-stopped \
+     -p 8081:8081 \
+     -v tbot-api-data:/var/lib/telegram-bot-api \
+     -e TELEGRAM_API_ID=YOUR_API_ID \
+     -e TELEGRAM_API_HASH=YOUR_API_HASH \
+     aiogram/telegram-bot-api:latest --local
+   ```
+
+   The image [`aiogram/telegram-bot-api`](https://hub.docker.com/r/aiogram/telegram-bot-api)
+   tracks upstream builds.
+3. Tell this bot to use it by exporting these before `python colab_bot.py`:
+
+   ```bash
+   export TELEGRAM_API_BASE_URL=http://127.0.0.1:8081/bot
+   export TELEGRAM_FILE_API_BASE_URL=http://127.0.0.1:8081/file/bot
+   ```
+
+   The bot logs `Using local Bot API server at …` on startup and
+   auto-bumps the internal upload cap to 2 GB.
+
+> ⚠ A self-hosted Bot API server only works on machines you control
+> – Colab's sandbox can't expose a port that the bot can reach
+> reliably. For Colab, use the default (cloud) API and live with the
+> 50 MB cap, or run the bot on a VPS / your own machine instead.
 
 ## Run locally
 

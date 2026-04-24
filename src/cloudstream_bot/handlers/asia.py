@@ -11,19 +11,16 @@ from telegram.ext import ContextTypes
 
 from ..i18n import t
 from ..session import get_lang, recall, remember
+from ..urls import prettify_url
 from ..video import send_from_url
 
 
 log = logging.getLogger(__name__)
 
 
-async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def run_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: str) -> None:
     assert update.message is not None and update.effective_user is not None
     lang = get_lang(update.effective_user.id)
-    query = " ".join(context.args or []).strip()
-    if not query:
-        await update.message.reply_text(t(lang, "usage_asia"))
-        return
     deps = context.application.bot_data["deps"]
     try:
         results = await deps.asia2tv.search(query, limit=15)
@@ -34,7 +31,7 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     if not results:
         await update.message.reply_text(t(lang, "no_results"))
         return
-    kb = [
+    kb: List[List[InlineKeyboardButton]] = [
         [
             InlineKeyboardButton(
                 (r.title or "—")[:60],
@@ -43,11 +40,22 @@ async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         ]
         for r in results
     ]
+    kb.append([InlineKeyboardButton(t(lang, "menu_back"), callback_data="menu:open")])
     await update.message.reply_text(
         t(lang, "asia_results_for", query=query),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(kb),
     )
+
+
+async def cmd_search(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    assert update.message is not None and update.effective_user is not None
+    lang = get_lang(update.effective_user.id)
+    query = " ".join(context.args or []).strip()
+    if not query:
+        await update.message.reply_text(t(lang, "usage_asia"))
+        return
+    await run_search(update, context, query)
 
 
 async def cb_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -129,7 +137,8 @@ async def cb_episode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     lines = [t(lang, "embed_servers_header", count=len(servers)), ""]
     kb: List[List[InlineKeyboardButton]] = []
     for s in servers:
-        lines.append(f"• <b>{s.name}</b> — {s.url}")
+        display = prettify_url(s.url)
+        lines.append(f"• <b>{s.name}</b> — <code>{display}</code>")
         kb.append(
             [
                 InlineKeyboardButton(
@@ -137,7 +146,7 @@ async def cb_episode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
                     callback_data=f"a2:v:{remember('a2_v', s.url)}",
                 ),
                 InlineKeyboardButton(
-                    t(lang, "open_in_browser"), url=s.url
+                    t(lang, "open_in_browser"), url=display
                 ),
             ]
         )

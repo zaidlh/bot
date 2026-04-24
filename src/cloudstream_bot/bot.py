@@ -12,6 +12,7 @@ from pathlib import Path
 import httpx
 from telegram.ext import Application
 
+from .config import TELEGRAM_API_BASE_URL, TELEGRAM_FILE_API_BASE_URL, is_local_mode
 from .handlers import BotDeps, register
 from .scrapers import AnimeWitcherScraper, Asia2TVScraper
 
@@ -78,7 +79,19 @@ async def run() -> None:
         animewitcher=AnimeWitcherScraper(),
         client=client,
     )
-    app = Application.builder().token(token).build()
+    builder = Application.builder().token(token)
+    if is_local_mode():
+        assert TELEGRAM_API_BASE_URL is not None
+        file_base = TELEGRAM_FILE_API_BASE_URL or TELEGRAM_API_BASE_URL.replace(
+            "/bot", "/file/bot", 1
+        )
+        builder = (
+            builder.base_url(TELEGRAM_API_BASE_URL)
+            .base_file_url(file_base)
+            .local_mode(True)
+        )
+        log.info("Using local Bot API server at %s", TELEGRAM_API_BASE_URL)
+    app = builder.build()
     register(app, deps)
 
     log.info("Starting bot…")
