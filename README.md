@@ -1,75 +1,101 @@
-# bot
+# Cloudstream → Telegram bridge
 
-A single-file Telegram bot that wraps the two Cloudstream 3 extensions
-shipped in this repo:
+[![CI](https://github.com/zaidlh/bot/actions/workflows/ci.yml/badge.svg)](https://github.com/zaidlh/bot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](./LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
 
-| File               | Plugin class                              | Source site              |
-|--------------------|-------------------------------------------|--------------------------|
-| `Aia2tv 2.cs3`     | `com.asia2tv.Asia2tvProvider`             | <https://ww1.asia2tv.pw> |
-| `Animewitcher.cs3` | `com.animewitcher.AnimeWitcherProvider`   | <https://animewitcher.com> |
+A Telegram bot that ports the two Cloudstream 3 plugins shipped in
+this repo to Python, so you can browse and stream the same content
+from any chat.
 
-`.cs3` files are Cloudstream plugin bundles (a DEX file plus a JSON
-manifest) and only run inside the Cloudstream Android app. This repo
-re-implements the same scrapers in Python and exposes them as Telegram
-commands – everything lives in one file: **`colab_bot.py`**.
+| Plugin bundle                            | Kotlin class                            | Source                     |
+|------------------------------------------|------------------------------------------|----------------------------|
+| [`reference/Aia2tv 2.cs3`](./reference)  | `com.asia2tv.Asia2tvProvider`            | <https://ww1.asia2tv.pw>   |
+| [`reference/Animewitcher.cs3`](./reference) | `com.animewitcher.AnimeWitcherProvider` | <https://animewitcher.com> |
+
+## Contents
+
+- [Features](#features)
+- [Commands](#commands)
+- [Run on Google Colab](#run-on-google-colab)
+- [Run locally](#run-locally)
+- [Project layout](#project-layout)
+- [How the ports work](#how-the-ports-work)
+- [Notes & limits](#notes--limits)
+- [License](#license)
+
+## Features
+
+- `/asia <query>` – search **Asia2TV** (Asian drama / movies).
+- `/anime <query>` – search **AnimeWitcher** (anime series / movies).
+- Inline navigation: search → title → episodes → servers.
+- **Send as video**: for supported hosts the bot uploads an actual
+  `.mp4` to Telegram instead of just a link. Currently implemented:
+  - Pixeldrain (direct API, Telegram fetches the file).
+  - Ok.ru (embedded player – bot downloads and re-uploads).
+- **Send all episodes**: one-click bulk download of every episode of a
+  series (sequential, with progress updates and URL fallback for
+  hosts that can't be resolved).
+- **Three UI languages**: English, العربية, Français – pick with
+  `/lang` and the choice is remembered per user.
+- **Colab-friendly**: drop `colab_bot.py` into a notebook and run.
 
 ## Commands
 
-| Command            | What it does                                  |
-|--------------------|-----------------------------------------------|
-| `/start`, `/help`  | Show the welcome message                      |
-| `/asia <query>`    | Search Asia2TV for Asian drama / movies       |
-| `/anime <query>`   | Search AnimeWitcher for anime series / movies |
+| Command            | What it does                                     |
+|--------------------|--------------------------------------------------|
+| `/start`, `/help`  | Show the welcome message                         |
+| `/menu`            | Open the main menu (buttons)                     |
+| `/lang`            | Switch interface language                        |
+| `/asia <query>`    | Search Asia2TV                                   |
+| `/anime <query>`   | Search AnimeWitcher                              |
 
-Search results come back as inline-keyboard buttons. Picking a title
-loads its plot / tags / episode list; picking an episode shows the
-available embed or direct-link servers (Okru, Vidmoly, LuluStream, VK,
-Krakenfiles, Pixeldrain, …). The bot does not re-host any media – it
-only returns the same links the Cloudstream plugins would otherwise
-resolve inside the Android app.
+Inline buttons on each title / episode expose **Send video** and
+**Open** – the bot uploads the video when the host is supported and
+the file fits under Telegram's 50 MB Bot API cap, otherwise it falls
+back to a clickable link.
 
-## Run it on Google Colab
+## Run on Google Colab
 
 1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the
    token.
-2. Open a fresh Colab notebook and paste each of the following into
-   its own cell.
+2. Open a fresh Colab notebook and paste each snippet into its own
+   cell:
 
    ```python
-   # Cell 1 – grab the single-file bot from this repo
-   !wget -q https://raw.githubusercontent.com/zaidlh/bot/main/colab_bot.py
+   # Cell 1 – clone the repo
+   !git clone --depth 1 https://github.com/zaidlh/bot.git
+   %cd bot
    ```
 
    ```python
    # Cell 2 – install deps
-   !pip -q install "python-telegram-bot>=21.4,<22" "httpx>=0.27,<0.29" \
-       "beautifulsoup4>=4.12,<5" nest_asyncio
+   !pip -q install -r requirements.txt
    ```
 
    ```python
-   # Cell 3 – set the token and run
+   # Cell 3 – set token and run
    import os
-   os.environ["TELEGRAM_BOT_TOKEN"] = "123456:ABC-paste-your-token-here"
+   os.environ["TELEGRAM_BOT_TOKEN"] = "123456:ABC-your-token-here"
    !python colab_bot.py
    ```
 
-   The third cell keeps the bot running until you stop it (■ in
-   Colab's toolbar). Chat with your bot from Telegram while the cell
-   is live.
+   Colab cell 3 keeps the bot running until you stop it (■ in the
+   toolbar). Chat with the bot from Telegram while the cell is live.
 
-   You can also skip the `!python` subprocess and run the coroutine
-   directly inside the notebook – handy when you want to stop and
-   restart without losing state:
+   Prefer running inside the notebook (so you can stop / restart
+   without losing state)? Replace cell 3 with:
 
    ```python
-   import colab_bot
+   import os, colab_bot
+   os.environ["TELEGRAM_BOT_TOKEN"] = "123456:ABC-your-token-here"
    await colab_bot.run()
    ```
 
-   `colab_bot` calls `nest_asyncio.apply()` automatically when it's
-   available, so this works inside Colab / Jupyter kernels.
+   `nest_asyncio.apply()` is called automatically, so nested loops in
+   Colab / Jupyter just work.
 
-## Run it locally
+## Run locally
 
 Requires Python 3.10+.
 
@@ -79,36 +105,84 @@ cd bot
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 
-export TELEGRAM_BOT_TOKEN=123456:ABC-paste-your-token-here
-python colab_bot.py
+cp .env.example .env
+$EDITOR .env   # paste your @BotFather token
+python colab_bot.py   # or: python -m cloudstream_bot
 ```
 
-Long polling is used, so no public URL / webhook is needed. Stop the
-bot with `Ctrl+C`.
+Long polling is used, so no public URL / webhook is required.
+
+## Project layout
+
+```
+bot/
+├── colab_bot.py              # one-liner launcher (imports src/)
+├── src/
+│   └── cloudstream_bot/
+│       ├── bot.py            # app setup, entrypoint
+│       ├── config.py         # env vars & constants
+│       ├── session.py        # per-user prefs + callback-token store
+│       ├── video.py          # embed URL → sendVideo pipeline
+│       ├── handlers/
+│       │   ├── common.py     # /start, /help, /menu, /lang
+│       │   ├── asia.py       # Asia2TV search flow
+│       │   └── anime.py      # AnimeWitcher search flow + send-all
+│       ├── scrapers/
+│       │   ├── asia2tv.py
+│       │   └── animewitcher.py
+│       ├── extractors/
+│       │   ├── pixeldrain.py # direct API
+│       │   └── okru.py       # data-options JSON
+│       └── i18n/
+│           ├── en.json
+│           ├── ar.json
+│           └── fr.json
+├── reference/                # original .cs3 Cloudstream plugins
+├── requirements.txt
+├── pyproject.toml
+├── LICENSE
+└── .github/workflows/ci.yml  # ruff + import smoke test
+```
 
 ## How the ports work
 
-* **Asia2TV** is a WordPress site, so the scraper is a straight HTML
-  port of the Kotlin plugin (`/?s=…` for search, `div.loop-episode a`
-  for the episode list, `li.serverslist[data-server]` for the embed
-  URLs).
-* **AnimeWitcher** is backed by **Algolia** (index `series`) for
-  search and **Firestore REST** for title / episode / server data.
-  The scraper mirrors the plugin's `refreshAlgoliaKeys` routine: it
-  reads the current `app_id` / `api_key` from
+- **Asia2TV** is a WordPress site, so
+  [`scrapers/asia2tv.py`](src/cloudstream_bot/scrapers/asia2tv.py) is
+  a direct HTML port of the Kotlin plugin: `/?s=…` for search,
+  `div.loop-episode a` for the episode list,
+  `li.serverslist[data-server]` for the embed URLs (Okru, Vidmoly,
+  LuluStream, VK, …).
+- **AnimeWitcher** is backed by Algolia (index `series`) and
+  Firestore REST (project `animewitcher-1c66d`). The scraper in
+  [`scrapers/animewitcher.py`](src/cloudstream_bot/scrapers/animewitcher.py)
+  mirrors the plugin's `refreshAlgoliaKeys` routine: it reads the
+  current `app_id` / `api_key` from
   `Settings/constants.search_settings` in Firestore before the first
   search, then queries Algolia and Firestore exactly the same way the
-  `.cs3` does.
+  `.cs3` does (`anime_list/{id}/episodes`,
+  `anime_list/{id}/episodes/{ep}/servers2/all_servers`).
+- **Extractors** live under
+  [`extractors/`](src/cloudstream_bot/extractors). Each one exposes
+  a simple `matches(url)` / `extract(url, client)` pair so more hosts
+  can be added incrementally.
 
-## Notes / caveats
+## Notes & limits
 
-* The bot does **not** unwrap each embed to a `.m3u8` / `.mp4` URL.
-  The Cloudstream app ships a large library of per-host extractors
-  for that; re-implementing all of them is out of scope. Users get a
-  clickable embed URL they can open in a browser or any video player
-  that supports the host.
-* Algolia credentials rotate. `colab_bot.py` refreshes them
-  automatically, but if the site operator changes the Firestore
-  schema the scraper may need to be updated.
-* Both sites host content in Arabic, matching the `lang = "ar"` field
-  of the original Kotlin providers – no translation is performed.
+- Telegram's Bot API caps `sendVideo` at **50 MB** per file. 1080p
+  episodes frequently exceed that; the bot auto-picks the lowest
+  available quality when bulk-sending and falls back to a link when
+  the file is too large.
+- Not every embed host is supported. Vidmoly, LuluStream, VK and
+  some ad-gated "Server X" redirects use anti-scraping measures; the
+  bot keeps returning the URL for those.
+- HLS streams (e.g. Bunny.net CDN) are not transcoded – adding that
+  would require `ffmpeg` and is out of scope for a Colab-friendly
+  deployment.
+- Neither the `.cs3` plugins nor this bot host any media; everything
+  is fetched from the original sites at request time. If those sites
+  go down or change their HTML / Firestore schema, the scrapers will
+  need updating.
+
+## License
+
+[MIT](./LICENSE)
