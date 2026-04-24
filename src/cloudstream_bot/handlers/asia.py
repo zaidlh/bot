@@ -55,7 +55,7 @@ async def run_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: 
     ]
     kb.append([InlineKeyboardButton(t(lang, "menu_back"), callback_data="menu:open")])
     await update.message.reply_text(
-        t(lang, "asia_results_for", query=query),
+        t(lang, "asia_results_for", query=html.escape(query)),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(kb),
     )

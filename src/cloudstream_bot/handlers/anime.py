@@ -62,7 +62,7 @@ async def run_search(update: Update, context: ContextTypes.DEFAULT_TYPE, query: 
         )
     kb.append([InlineKeyboardButton(t(lang, "menu_back"), callback_data="menu:open")])
     await update.message.reply_text(
-        t(lang, "anime_results_for", query=query),
+        t(lang, "anime_results_for", query=html.escape(query)),
         parse_mode=ParseMode.HTML,
         reply_markup=InlineKeyboardMarkup(kb),
     )
@@ -288,10 +288,14 @@ async def cb_episode(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     lines = [t(lang, "embed_servers_header", count=len(servers)), ""]
     kb: List[List[InlineKeyboardButton]] = []
     for s in servers:
-        qlabel = f" ({s.quality})" if s.quality else ""
+        raw_qlabel = f" ({s.quality})" if s.quality else ""
         display = prettify_url(s.link)
-        lines.append(f"• <b>{html.escape(s.name)}</b>{qlabel} — <code>{html.escape(display)}</code>")
-        label = f"{s.name}{qlabel}"
+        lines.append(
+            f"• <b>{html.escape(s.name)}</b>"
+            f"{html.escape(raw_qlabel)} — "
+            f"<code>{html.escape(display)}</code>"
+        )
+        label = f"{s.name}{raw_qlabel}"
         kb.append(
             [
                 InlineKeyboardButton(
