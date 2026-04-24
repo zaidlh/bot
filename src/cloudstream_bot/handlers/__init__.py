@@ -38,14 +38,21 @@ def register(app: Application, deps: BotDeps) -> None:
     app.add_handler(CallbackQueryHandler(common.cb_menu, pattern=r"^menu:"))
 
     app.add_handler(CallbackQueryHandler(asia.cb_title, pattern=r"^a2:t:"))
+    app.add_handler(CallbackQueryHandler(asia.cb_page, pattern=r"^a2:p:"))
     app.add_handler(CallbackQueryHandler(asia.cb_episode, pattern=r"^a2:e:"))
     app.add_handler(CallbackQueryHandler(asia.cb_send_video, pattern=r"^a2:v:"))
+    app.add_handler(CallbackQueryHandler(asia.cb_export_urls, pattern=r"^a2:exp:"))
 
     app.add_handler(CallbackQueryHandler(anime.cb_title, pattern=r"^aw:t:"))
+    app.add_handler(CallbackQueryHandler(anime.cb_page, pattern=r"^aw:p:"))
     app.add_handler(CallbackQueryHandler(anime.cb_episode, pattern=r"^aw:e:"))
     app.add_handler(CallbackQueryHandler(anime.cb_send_video, pattern=r"^aw:v:"))
-    app.add_handler(CallbackQueryHandler(anime.cb_send_all, pattern=r"^aw:all:"))
     app.add_handler(CallbackQueryHandler(anime.cb_send_all_confirm, pattern=r"^aw:allc:"))
+    app.add_handler(CallbackQueryHandler(anime.cb_send_all, pattern=r"^aw:all:"))
+    app.add_handler(CallbackQueryHandler(anime.cb_export_urls, pattern=r"^aw:exp:"))
+
+    # Disabled "page X/N" indicator.
+    app.add_handler(CallbackQueryHandler(anime.cb_noop, pattern=r"^noop$"))
 
     # ForceReply-based search: any plain text reply to one of our search
     # prompts runs the matching search.
