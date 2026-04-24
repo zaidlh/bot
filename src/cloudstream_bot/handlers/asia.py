@@ -293,7 +293,7 @@ async def cb_send_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         caption=None,
     )
     if not ok:
-        display = prettify_url(url)
+        display = html.escape(prettify_url(url))
         if err_key == "too_large":
             await q.message.reply_html(
                 t(lang, "extract_too_large", size_mb=">48", url=display)

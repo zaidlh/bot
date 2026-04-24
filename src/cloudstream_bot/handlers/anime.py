@@ -334,7 +334,7 @@ async def cb_send_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         q.get_bot(), q.message.chat_id, url, client=deps.client
     )
     if not ok:
-        display = prettify_url(url)
+        display = html.escape(prettify_url(url))
         if err_key == "too_large":
             await q.message.reply_html(
                 t(lang, "extract_too_large", size_mb=">48", url=display)
@@ -492,7 +492,8 @@ async def cb_send_all_confirm(
             if best is not None:
                 try:
                     await q.message.reply_html(
-                        f"Ep {ep.number:02d}: {prettify_url(best.link)}",
+                        f"Ep {ep.number:02d}: "
+                        f"{html.escape(prettify_url(best.link))}",
                         disable_web_page_preview=True,
                     )
                 except TelegramError:
