@@ -112,6 +112,21 @@ back to a clickable link.
    `nest_asyncio.apply()` is called automatically, so nested loops in
    Colab / Jupyter just work.
 
+## Ways to bypass the 50 MB upload cap
+
+Short answer: there are three practical options.
+
+| Option | Cap | Complexity | Notes |
+|---|---|---|---|
+| Default cloud Bot API | 50 MB send / 20 MB URL | – | What you get out of the box. |
+| **Local Bot API Server** (below) | **2 GB** | Medium | Best option; no user-account needed. |
+| MTProto via a **user** account | 2 GB (4 GB Premium) | High | Needs a phone number + a session string. Bot acts through your user account; files appear as sent by *you*, not by the bot. |
+| Split-and-send as documents | per-part 50 MB | Low | `ffmpeg -f segment …` then `sendDocument` each part. Viewer has to `cat` them back. Not implemented yet. |
+
+> Important: a bot over MTProto has the **same** 50 MB cap as the HTTP Bot API — Telegram enforces that server-side on anything authenticated as a bot. The 2 GB tier is only unlocked by (a) a self-hosted Bot API server in local mode, or (b) sending as a user account.
+
+For day-to-day use, run the local server. For Colab specifically, the local server path doesn't work well (sandbox, ports), so either accept the 50 MB cap or run the bot on a VPS / your own machine.
+
 ## Local Bot API Server (2 GB uploads)
 
 The public Bot API caps file uploads at **50 MB** (`sendVideo`,
