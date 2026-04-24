@@ -2,17 +2,68 @@
 
 from __future__ import annotations
 
+from typing import Optional
+
 from telegram import (
     ForceReply,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
+    Message,
     Update,
 )
 from telegram.constants import ParseMode
+from telegram.error import TelegramError
 from telegram.ext import ContextTypes
 
 from ..i18n import t
 from ..session import get_lang, set_lang
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+async def edit_or_replace(
+    message: Message,
+    text: str,
+    *,
+    parse_mode: Optional[str] = None,
+    reply_markup: Optional[InlineKeyboardMarkup] = None,
+    disable_web_page_preview: bool = True,
+) -> None:
+    """Edit ``message`` in place, or delete + reply if it's a media message.
+
+    Telegram's ``editMessageText`` only works on text messages. Title
+    pages are photo messages (cover + caption), so editing their text
+    raises ``BadRequest``. In that case we delete the photo and send a
+    new text message below it, preserving the conversation flow.
+    """
+    if message.photo or message.video or message.document or message.animation:
+        try:
+            await message.delete()
+        except TelegramError:
+            pass
+        await message.reply_text(
+            text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+            disable_web_page_preview=disable_web_page_preview,
+        )
+        return
+    try:
+        await message.edit_text(
+            text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+            disable_web_page_preview=disable_web_page_preview,
+        )
+    except TelegramError:
+        # Last-ditch fallback: just post a new message.
+        await message.reply_text(
+            text,
+            parse_mode=parse_mode,
+            reply_markup=reply_markup,
+            disable_web_page_preview=disable_web_page_preview,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -128,12 +179,14 @@ async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ),
         )
     elif target == "lang":
-        await q.edit_message_text(
+        await edit_or_replace(
+            q.message,
             "🌐  Pick a language / اختر اللغة / Choisissez la langue:",
             reply_markup=lang_keyboard(),
         )
     elif target == "help":
-        await q.edit_message_text(
+        await edit_or_replace(
+            q.message,
             t(lang, "welcome"),
             parse_mode=ParseMode.HTML,
             reply_markup=InlineKeyboardMarkup(
@@ -147,7 +200,8 @@ async def cb_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             ),
         )
     elif target == "open":
-        await q.edit_message_text(
+        await edit_or_replace(
+            q.message,
             t(lang, "menu_title"),
             parse_mode=ParseMode.HTML,
             reply_markup=menu_keyboard(lang),

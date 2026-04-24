@@ -222,7 +222,12 @@ async def cb_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 async def cb_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle episode-grid page navigation."""
     q = update.callback_query
-    assert q is not None and q.data is not None and update.effective_user is not None
+    assert (
+        q is not None
+        and q.data is not None
+        and update.effective_user is not None
+        and q.message is not None
+    )
     await q.answer()
     # "aw:p:<token>:<page>"
     parts = q.data.split(":")
@@ -231,7 +236,8 @@ async def cb_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = get_lang(update.effective_user.id)
     entry = recall(token)
     if entry is None:
-        await q.edit_message_text(t(lang, "session_expired"))
+        # The title message is a photo, so edit_message_text won't work.
+        await q.message.reply_text(t(lang, "session_expired"))
         return
     _, object_id = entry
     deps = context.application.bot_data["deps"]
@@ -239,7 +245,7 @@ async def cb_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         title = await deps.animewitcher.load(object_id)
     except Exception as e:
         log.exception("animewitcher load failed")
-        await q.edit_message_text(t(lang, "load_failed", err=e))
+        await q.message.reply_text(t(lang, "load_failed", err=e))
         return
 
     kb = _episodes_keyboard(title, lang=lang, page=page, title_token=token)

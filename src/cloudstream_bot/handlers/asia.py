@@ -189,7 +189,12 @@ async def cb_title(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
 async def cb_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     q = update.callback_query
-    assert q is not None and q.data is not None and update.effective_user is not None
+    assert (
+        q is not None
+        and q.data is not None
+        and update.effective_user is not None
+        and q.message is not None
+    )
     await q.answer()
     parts = q.data.split(":")
     token = parts[2]
@@ -197,7 +202,8 @@ async def cb_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     lang = get_lang(update.effective_user.id)
     entry = recall(token)
     if entry is None:
-        await q.edit_message_text(t(lang, "session_expired"))
+        # Title message is a photo; use reply_text rather than edit_message_text.
+        await q.message.reply_text(t(lang, "session_expired"))
         return
     _, url = entry
     deps = context.application.bot_data["deps"]
@@ -205,7 +211,7 @@ async def cb_page(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         title = await deps.asia2tv.load(url)
     except Exception as e:
         log.exception("asia2tv load failed")
-        await q.edit_message_text(t(lang, "load_failed", err=e))
+        await q.message.reply_text(t(lang, "load_failed", err=e))
         return
     kb = _episodes_keyboard(title, lang=lang, page=page, title_token=token)
     try:
