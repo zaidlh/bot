@@ -146,15 +146,17 @@ class AnimeWitcherScraper:
             f"{index}/query"
         )
 
-    async def search(self, query: str, limit: int = 20) -> List[AnimeSearchResult]:
+    async def _algolia_query(
+        self, query: str, *, page: int, hits_per_page: int
+    ) -> dict:
         if not self._keys_refreshed:
             await self.refresh_algolia_keys()
         encoded_query = urllib.parse.quote(query, safe="")
         encoded_attrs = urllib.parse.quote(_SEARCH_ATTRIBUTES, safe="")
         payload = {
             "params": (
-                f"attributesToRetrieve={encoded_attrs}&hitsPerPage={limit}"
-                f"&page=0&query={encoded_query}"
+                f"attributesToRetrieve={encoded_attrs}&hitsPerPage={hits_per_page}"
+                f"&page={page}&query={encoded_query}"
             )
         }
         resp = await self._client.post(
@@ -163,19 +165,33 @@ class AnimeWitcherScraper:
             json=payload,
         )
         resp.raise_for_status()
-        out: List[AnimeSearchResult] = []
-        for h in resp.json().get("hits", []) or []:
-            out.append(
-                AnimeSearchResult(
-                    object_id=h.get("objectID") or "",
-                    name=h.get("name") or h.get("english_title") or "Unknown",
-                    english_title=h.get("english_title"),
-                    type=h.get("type"),
-                    poster=h.get("poster_uri"),
-                    story=h.get("story"),
-                )
-            )
-        return out
+        return resp.json()
+
+    @staticmethod
+    def _hit_to_result(h: dict) -> "AnimeSearchResult":
+        return AnimeSearchResult(
+            object_id=h.get("objectID") or "",
+            name=h.get("name") or h.get("english_title") or "Unknown",
+            english_title=h.get("english_title"),
+            type=h.get("type"),
+            poster=h.get("poster_uri"),
+            story=h.get("story"),
+        )
+
+    async def search(self, query: str, limit: int = 20) -> List[AnimeSearchResult]:
+        data = await self._algolia_query(query, page=0, hits_per_page=limit)
+        return [self._hit_to_result(h) for h in data.get("hits", []) or []]
+
+    async def browse_page(
+        self, page: int, hits_per_page: int = 100
+    ) -> tuple[List[AnimeSearchResult], int]:
+        """Return one Algolia page of the ``series`` index plus total page count.
+
+        Used by the static-site dump script to enumerate the whole catalog.
+        """
+        data = await self._algolia_query("", page=page, hits_per_page=hits_per_page)
+        hits = [self._hit_to_result(h) for h in data.get("hits", []) or []]
+        return hits, int(data.get("nbPages") or 1)
 
     async def load(self, object_id: str) -> AnimeTitle:
         resp = await self._client.get(

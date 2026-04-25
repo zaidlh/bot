@@ -10,3 +10,9 @@ dist/
 .pytest_cache/
 .ruff_cache/
 .mypy_cache/
+
+# Web (Next.js)
+web/node_modules/
+web/.next/
+web/out/
+*.tsbuildinfo
