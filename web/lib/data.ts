@@ -31,5 +31,5 @@ export async function loadAsia2tv(): Promise<Catalog> {
   return readJson<Catalog>("asia2tv.json", { ...EMPTY, source: "asia2tv" });
 }
 
-export { displayName, slugify, unslug, prettifyUrl } from "./types";
+export { displayName, slugify, prettifyUrl } from "./types";
 export type { Catalog, Episode, Title } from "./types";

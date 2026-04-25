@@ -38,28 +38,47 @@ export function displayName(t: Title): string {
   return t.title || t.english_title || t.name || t.id || "Untitled";
 }
 
-/** Slug used in URLs — base64url of the id, safe for any character set. */
+/**
+ * Slug used in URLs.
+ *
+ * AnimeWitcher object_ids are short titles ("Black Clover") that
+ * round-trip safely through base64url. Asia2TV ids are full URLs
+ * (~120+ encoded chars of Arabic) — base64-encoding those produces
+ * filesystem paths over the 255-char limit when Next.js exports the
+ * static page, so we fall back to a 12-hex-char FNV-1a hash. The slug
+ * is opaque on the wire either way; the detail page resolves it by
+ * matching ``slugify(title.id) === slug``.
+ */
+const SHORT_SLUG_LIMIT = 96;
+
 export function slugify(id: string): string {
+  // 1. URL-safe base64 of the id.
+  let slug: string;
   if (typeof window === "undefined") {
-    return Buffer.from(id, "utf8")
+    slug = Buffer.from(id, "utf8")
       .toString("base64")
       .replace(/\+/g, "-")
       .replace(/\//g, "_")
       .replace(/=+$/, "");
+  } else {
+    const b64 = btoa(unescape(encodeURIComponent(id)));
+    slug = b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
   }
-  // Browser fallback (only used if a client component slugifies, currently
-  // none do — but keep this isomorphic for safety).
-  const b64 = btoa(unescape(encodeURIComponent(id)));
-  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  if (slug.length <= SHORT_SLUG_LIMIT) return slug;
+  // 2. Long ids (e.g. Arabic Asia2TV URLs) → 12-char FNV-1a hex.
+  return "h" + fnv1aHex(id);
 }
 
-export function unslug(slug: string): string {
-  let b64 = slug.replace(/-/g, "+").replace(/_/g, "/");
-  while (b64.length % 4) b64 += "=";
-  if (typeof window === "undefined") {
-    return Buffer.from(b64, "base64").toString("utf8");
+function fnv1aHex(s: string): string {
+  // 64-bit FNV-1a using BigInt for portability across Node and browsers.
+  let h = BigInt("0xcbf29ce484222325");
+  const prime = BigInt("0x100000001b3");
+  const mask = BigInt("0xffffffffffffffff");
+  for (let i = 0; i < s.length; i++) {
+    h ^= BigInt(s.charCodeAt(i));
+    h = (h * prime) & mask;
   }
-  return decodeURIComponent(escape(atob(b64)));
+  return h.toString(16).padStart(16, "0").slice(0, 12);
 }
 
 /** Pixeldrain /u/ID → /api/file/ID rewrite, mirrors urls.py. */

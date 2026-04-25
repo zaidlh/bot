@@ -1,11 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import {
-  displayName,
-  loadAnimewitcher,
-  slugify,
-  unslug,
-} from "@/lib/data";
+import { displayName, loadAnimewitcher, slugify } from "@/lib/data";
 
 export async function generateStaticParams() {
   const data = await loadAnimewitcher();
@@ -18,8 +13,7 @@ export default async function AnimeDetail({
   params: { slug: string };
 }) {
   const data = await loadAnimewitcher();
-  const id = unslug(params.slug);
-  const title = data.titles.find((t) => t.id === id);
+  const title = data.titles.find((t) => slugify(t.id) === params.slug);
   if (!title) notFound();
 
   return (
