@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { displayName, loadAsia2tv, slugify, unslug } from "@/lib/data";
+import { displayName, loadAsia2tv, slugify } from "@/lib/data";
 
 export async function generateStaticParams() {
   const data = await loadAsia2tv();
@@ -13,8 +13,7 @@ export default async function AsiaDetail({
   params: { slug: string };
 }) {
   const data = await loadAsia2tv();
-  const id = unslug(params.slug);
-  const title = data.titles.find((t) => t.id === id);
+  const title = data.titles.find((t) => slugify(t.id) === params.slug);
   if (!title) notFound();
 
   return (
