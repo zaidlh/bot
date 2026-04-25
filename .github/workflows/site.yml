@@ -47,18 +47,22 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Dump AnimeWitcher
+        env:
+          ANIME_LIMIT: ${{ inputs.anime_limit }}
         run: |
           ARGS=""
-          if [ -n "${{ inputs.anime_limit }}" ]; then
-            ARGS="--limit ${{ inputs.anime_limit }}"
+          if [ -n "$ANIME_LIMIT" ]; then
+            ARGS="--limit $ANIME_LIMIT"
           fi
           python -m scripts.dump_animewitcher $ARGS --output data/animewitcher.json
 
       - name: Dump Asia2TV
+        env:
+          ASIA_LIMIT: ${{ inputs.asia_limit }}
         run: |
           ARGS=""
-          if [ -n "${{ inputs.asia_limit }}" ]; then
-            ARGS="--limit ${{ inputs.asia_limit }}"
+          if [ -n "$ASIA_LIMIT" ]; then
+            ARGS="--limit $ASIA_LIMIT"
           fi
           python -m scripts.dump_asia2tv $ARGS --output data/asia2tv.json
 
