@@ -37,9 +37,11 @@ from cloudstream_bot.urls import prettify_url  # noqa: E402
 log = logging.getLogger("dump_animewitcher")
 
 
-async def _resolve_servers(scraper, object_id: str, episodes: list[dict]) -> int:
+async def _resolve_servers(
+    scraper, object_id: str, episodes: list[dict], concurrency: int
+) -> int:
     """Populate ``ep["servers"]`` for each episode. Returns count loaded."""
-    sem = asyncio.Semaphore(8)
+    sem = asyncio.Semaphore(concurrency)
     loaded = 0
 
     async def one(ep: dict) -> None:
@@ -130,7 +132,9 @@ async def main(
         if resolve_servers:
             log.info("resolving servers for %d titles…", len(out))
             for j, doc in enumerate(out, start=1):
-                await _resolve_servers(scraper, doc["id"], doc["episodes"])
+                await _resolve_servers(
+                    scraper, doc["id"], doc["episodes"], concurrency
+                )
                 if j % 10 == 0 or j == len(out):
                     log.info("server-resolved %d/%d titles", j, len(out))
 

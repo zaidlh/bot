@@ -39,9 +39,11 @@ from cloudstream_bot.urls import prettify_url  # noqa: E402
 log = logging.getLogger("dump_asia2tv")
 
 
-async def _resolve_servers(scraper, episodes: list[dict]) -> None:
+async def _resolve_servers(
+    scraper, episodes: list[dict], concurrency: int
+) -> None:
     """Populate ``ep["servers"]`` by scraping each episode's player list."""
-    sem = asyncio.Semaphore(8)
+    sem = asyncio.Semaphore(concurrency)
 
     async def one(ep: dict) -> None:
         async with sem:
@@ -154,7 +156,7 @@ async def main(
         if resolve_servers:
             log.info("resolving servers for %d series…", len(out))
             for j, doc in enumerate(out, start=1):
-                await _resolve_servers(scraper, doc["episodes"])
+                await _resolve_servers(scraper, doc["episodes"], concurrency)
                 if j % 10 == 0 or j == len(out):
                     log.info("server-resolved %d/%d series", j, len(out))
 
