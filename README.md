@@ -20,6 +20,7 @@ from any chat.
 - [Run on Google Colab](#run-on-google-colab)
 - [Run locally](#run-locally)
 - [Local Bot API Server (2 GB uploads)](#local-bot-api-server-2-gb-uploads)
+- [Catalog website](#catalog-website)
 - [Project layout](#project-layout)
 - [How the ports work](#how-the-ports-work)
 - [Notes & limits](#notes--limits)
@@ -182,6 +183,32 @@ python colab_bot.py   # or: python -m cloudstream_bot
 
 Long polling is used, so no public URL / webhook is required.
 
+## Catalog website
+
+The repo also ships a **static read-only website** that browses every
+title scraped from both sources — useful as a public index without
+running the bot.
+
+- **Dump scripts** in [`scripts/`](./scripts) emit JSON to [`data/`](./data):
+  ```bash
+  python -m scripts.dump_animewitcher           # full ~1k catalog
+  python -m scripts.dump_asia2tv --limit 200    # sample for first run
+  ```
+- **Static site** in [`web/`](./web) (Next.js + Tailwind) reads those
+  JSONs at build time:
+  ```bash
+  cd web && npm install && npm run build  # output in web/out/
+  ```
+- **CI workflow** [`.github/workflows/site.yml`](./.github/workflows/site.yml)
+  re-scrapes nightly and deploys the result to GitHub Pages — enable
+  Pages in *Settings → Pages → Source: GitHub Actions*. To deploy on
+  Vercel instead, point a Vercel project at the `web/` folder; the
+  cron in the workflow still keeps `data/*.json` fresh.
+
+Per-episode server URLs (Pixeldrain, Bunny CDN, …) are not resolved by
+the dump scripts; the site links to source episode pages and falls
+back to the bot for direct streaming.
+
 ## Project layout
 
 ```
@@ -207,11 +234,16 @@ bot/
 │           ├── en.json
 │           ├── ar.json
 │           └── fr.json
+├── scripts/                  # catalog dump scripts (animewitcher, asia2tv)
+├── data/                     # JSON dumps consumed by the website
+├── web/                      # Next.js static site (App Router + Tailwind)
 ├── reference/                # original .cs3 Cloudstream plugins
 ├── requirements.txt
 ├── pyproject.toml
 ├── LICENSE
-└── .github/workflows/ci.yml  # ruff + import smoke test
+└── .github/workflows/
+    ├── ci.yml                # ruff + import smoke test
+    └── site.yml              # nightly scrape + Pages deploy
 ```
 
 ## How the ports work
