@@ -32,11 +32,45 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from cloudstream_bot.scrapers import AnimeWitcherScraper  # noqa: E402
+from cloudstream_bot.urls import prettify_url  # noqa: E402
 
 log = logging.getLogger("dump_animewitcher")
 
 
-async def main(limit: int | None, concurrency: int, output: Path) -> None:
+async def _resolve_servers(scraper, object_id: str, episodes: list[dict]) -> int:
+    """Populate ``ep["servers"]`` for each episode. Returns count loaded."""
+    sem = asyncio.Semaphore(8)
+    loaded = 0
+
+    async def one(ep: dict) -> None:
+        nonlocal loaded
+        async with sem:
+            try:
+                servers = await scraper.fetch_servers(object_id, ep["doc_id"])
+            except Exception as e:
+                log.debug("fetch_servers %s/%s: %s", object_id, ep["doc_id"], e)
+                ep["servers"] = []
+                return
+        ep["servers"] = [
+            {
+                "name": s.name,
+                "quality": s.quality,
+                "link": prettify_url(s.link),
+            }
+            for s in servers
+        ]
+        loaded += 1
+
+    await asyncio.gather(*(one(ep) for ep in episodes))
+    return loaded
+
+
+async def main(
+    limit: int | None,
+    concurrency: int,
+    output: Path,
+    resolve_servers: bool,
+) -> None:
     scraper = AnimeWitcherScraper(timeout=30.0)
     try:
         # 1. Enumerate the catalog.
@@ -92,6 +126,14 @@ async def main(limit: int | None, concurrency: int, output: Path) -> None:
             if i % 25 == 0 or i == len(tasks):
                 log.info("loaded %d/%d (ok=%d fail=%d)", i, len(tasks), ok, fail)
 
+        # 2b. Optionally resolve servers per episode.
+        if resolve_servers:
+            log.info("resolving servers for %d titles…", len(out))
+            for j, doc in enumerate(out, start=1):
+                await _resolve_servers(scraper, doc["id"], doc["episodes"])
+                if j % 10 == 0 or j == len(out):
+                    log.info("server-resolved %d/%d titles", j, len(out))
+
         # 3. Write.
         output.parent.mkdir(parents=True, exist_ok=True)
         # Stable sort so diffs are clean.
@@ -116,12 +158,16 @@ def cli() -> None:
     p.add_argument("--concurrency", type=int, default=8)
     p.add_argument("--output", type=Path,
                    default=Path("data/animewitcher.json"))
+    p.add_argument("--resolve-servers", action="store_true",
+                   help="Also fetch the per-episode server list "
+                        "(Pixeldrain, Bunny, …). Adds ~30 min per 1k titles.")
     args = p.parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
-    asyncio.run(main(args.limit, args.concurrency, args.output))
+    asyncio.run(main(args.limit, args.concurrency, args.output,
+                     args.resolve_servers))
 
 
 if __name__ == "__main__":

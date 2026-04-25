@@ -1,3 +1,13 @@
+export type Server = {
+  name: string;
+  /** AnimeWitcher only. */
+  quality?: string | null;
+  /** AnimeWitcher uses ``link``, Asia2TV uses ``url`` — both populated by
+   *  augment_servers.py with Pixeldrain rewritten to /api/file/<id>. */
+  link?: string;
+  url?: string;
+};
+
 export type Episode = {
   number: number;
   // AnimeWitcher
@@ -7,6 +17,8 @@ export type Episode = {
   bunny_video_id?: string | null;
   // Asia2TV
   url?: string;
+  // Resolved by augment_servers.py (optional — empty list when missing).
+  servers?: Server[];
 };
 
 export type Title = {

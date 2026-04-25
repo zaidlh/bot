@@ -63,21 +63,39 @@ export default async function AnimeDetail({
 
       <section>
         <h2 className="text-xl font-semibold mb-3">Episodes</h2>
-        <ol className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+        <ol className="space-y-2">
           {title.episodes.map((ep) => (
             <li
               key={ep.doc_id || ep.number}
               className="rounded-md border border-white/10 bg-panel/60 px-3 py-2 text-sm"
             >
               <div className="flex items-baseline justify-between gap-2">
-                <span className="font-medium">Ep {ep.number}</span>
+                <span className="font-medium">
+                  Ep {ep.number}
+                  {ep.name ? (
+                    <span className="text-white/60 font-normal"> — {ep.name}</span>
+                  ) : null}
+                </span>
                 {ep.bunny_video_id && (
                   <span className="text-[10px] text-accent">bunny</span>
                 )}
               </div>
-              {ep.name && (
-                <div className="text-white/60 text-xs line-clamp-2 mt-1">
-                  {ep.name}
+              {ep.servers && ep.servers.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {ep.servers.map((s, i) => (
+                    <a
+                      key={`${s.link || s.url}-${i}`}
+                      href={s.link || s.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-accent/10 hover:border-accent/30 hover:text-accent transition-colors"
+                    >
+                      {s.name}
+                      {s.quality ? (
+                        <span className="text-white/50"> · {s.quality}</span>
+                      ) : null}
+                    </a>
+                  ))}
                 </div>
               )}
             </li>

@@ -34,8 +34,28 @@ import httpx
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from cloudstream_bot.scrapers import Asia2TVScraper  # noqa: E402
+from cloudstream_bot.urls import prettify_url  # noqa: E402
 
 log = logging.getLogger("dump_asia2tv")
+
+
+async def _resolve_servers(scraper, episodes: list[dict]) -> None:
+    """Populate ``ep["servers"]`` by scraping each episode's player list."""
+    sem = asyncio.Semaphore(8)
+
+    async def one(ep: dict) -> None:
+        async with sem:
+            try:
+                servers = await scraper.load_links(ep["url"])
+            except Exception as e:
+                log.debug("load_links %s: %s", ep.get("url"), e)
+                ep["servers"] = []
+                return
+        ep["servers"] = [
+            {"name": s.name, "url": prettify_url(s.url)} for s in servers
+        ]
+
+    await asyncio.gather(*(one(ep) for ep in episodes))
 
 EPISODE_MARKER = urllib.parse.quote("الحلقة").lower()  # "the episode"
 SITEMAP_URL = "https://ww1.asia2tv.pw/sitemap.xml"
@@ -59,7 +79,12 @@ def likely_series_url(url: str) -> bool:
     return EPISODE_MARKER not in url.lower()
 
 
-async def main(limit: int | None, concurrency: int, output: Path) -> None:
+async def main(
+    limit: int | None,
+    concurrency: int,
+    output: Path,
+    resolve_servers: bool,
+) -> None:
     scraper = Asia2TVScraper(timeout=30.0)
     client = httpx.AsyncClient(
         headers={"User-Agent": "Mozilla/5.0"},
@@ -126,6 +151,13 @@ async def main(limit: int | None, concurrency: int, output: Path) -> None:
                 out = out[:limit]
                 break
 
+        if resolve_servers:
+            log.info("resolving servers for %d series…", len(out))
+            for j, doc in enumerate(out, start=1):
+                await _resolve_servers(scraper, doc["episodes"])
+                if j % 10 == 0 or j == len(out):
+                    log.info("server-resolved %d/%d series", j, len(out))
+
         output.parent.mkdir(parents=True, exist_ok=True)
         out.sort(key=lambda d: d["title"].lower())
         payload = {
@@ -148,12 +180,16 @@ def cli() -> None:
                    help="Max series to dump (default: full catalog)")
     p.add_argument("--concurrency", type=int, default=8)
     p.add_argument("--output", type=Path, default=Path("data/asia2tv.json"))
+    p.add_argument("--resolve-servers", action="store_true",
+                   help="Also scrape each episode's server list "
+                        "(Okru, Vidmoly, Pixeldrain, …). Slow.")
     args = p.parse_args()
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
-    asyncio.run(main(args.limit, args.concurrency, args.output))
+    asyncio.run(main(args.limit, args.concurrency, args.output,
+                     args.resolve_servers))
 
 
 if __name__ == "__main__":

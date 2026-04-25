@@ -22,6 +22,11 @@ on:
         description: "Asia2TV dump limit (blank = full)"
         required: false
         default: ""
+      resolve_servers:
+        description: "Also resolve per-episode server URLs (slow, ~25 min)"
+        required: false
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -65,6 +70,10 @@ jobs:
             ARGS="--limit $ASIA_LIMIT"
           fi
           python -m scripts.dump_asia2tv $ARGS --output data/asia2tv.json
+
+      - name: Resolve per-episode server URLs
+        if: ${{ inputs.resolve_servers != 'false' && github.event_name != 'schedule' || github.event_name == 'schedule' }}
+        run: python -m scripts.augment_servers --concurrency 16
 
       - uses: actions/setup-node@v4
         with:
