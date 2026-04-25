@@ -68,7 +68,7 @@ export default async function AsiaDetail({
 
       <section>
         <h2 className="text-xl font-semibold mb-3">Episodes</h2>
-        <ol className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+        <ol className="space-y-2">
           {title.episodes.map((ep) => (
             <li
               key={ep.url || ep.number}
@@ -83,10 +83,25 @@ export default async function AsiaDetail({
                     rel="noreferrer"
                     className="text-[11px] text-accent hover:underline"
                   >
-                    open ↗
+                    source ↗
                   </a>
                 )}
               </div>
+              {ep.servers && ep.servers.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {ep.servers.map((s, i) => (
+                    <a
+                      key={`${s.url || s.link}-${i}`}
+                      href={s.url || s.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-0.5 rounded-md bg-white/5 border border-white/10 text-xs hover:bg-accent/10 hover:border-accent/30 hover:text-accent transition-colors"
+                    >
+                      {s.name}
+                    </a>
+                  ))}
+                </div>
+              )}
             </li>
           ))}
         </ol>
